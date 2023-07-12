@@ -11,7 +11,11 @@ fn ctrl_channel() -> Result<Receiver<()>, ctrlc::Error> {
     Ok(receiver)
 }
 
+use log::{debug, info, trace, warn};
+
 fn main() {
+    env_logger::init();
+
     use std::sync::mpsc::channel;
     let (results_tx, results_rx) = channel();
 
@@ -21,13 +25,19 @@ fn main() {
     let (sender, receiver) = unbounded();
     let mut threads = Vec::new();
 
-    println!("Spawning {} workers.", MAX_WORKER);
+    info!("Spawning {} workers.", MAX_WORKER);
     for thread_num in 0..MAX_WORKER {
         let thread_results_tx = results_tx.clone();
         let r = receiver.clone();
         let handle = thread::Builder::new()
             .name(format!("thread_{}", thread_num))
             .spawn(move || {
+                debug!(
+                    "Thread {}: {:?}::{} started.",
+                    thread_num,
+                    thread::current().id(),
+                    thread::current().name().unwrap(),
+                );
                 let mut work_done = 0;
                 while let Ok(work) = r.recv() {
                     let result = fib(work);
@@ -40,11 +50,17 @@ fn main() {
                     }
                 }
                 std::thread::yield_now();
-                println!("Thread {} did {} jobs.", thread_num, work_done);
+                debug!(
+                    "Thread {}: {:?}::{} did {} jobs.",
+                    thread_num,
+                    thread::current().id(),
+                    thread::current().name().unwrap(),
+                    work_done,
+                );
             });
         threads.push(handle);
     }
-    println!("Workers successfully started.");
+    info!("Workers successfully started.");
 
     thread::Builder::new()
         .name("producer".to_string())
@@ -53,7 +69,7 @@ fn main() {
             let ctrl_c_events = ctrl_channel().unwrap();
             let ticks = tick(Duration::from_millis(5));
 
-            println!("Producer successfully started.");
+            info!("Producer successfully started.");
             let mut total_jobs = 0;
             loop {
                 select! {
@@ -63,18 +79,23 @@ fn main() {
                     }
                     recv(ctrl_c_events) -> _ => {
                         println!();
-                        println!("shutdown!");
+                        warn!("shutdown!");
                         break;
                     }
                 }
             }
             drop(thread_results_tx);
-            println!("Total of {} jobs inserted into the queue.", total_jobs);
+            debug!(
+                "Total of {} jobs inserted into the queue by {:#?}:{}",
+                total_jobs,
+                thread::current().id(),
+                thread::current().name().unwrap()
+            );
         })
         .unwrap();
 
     while let Ok((work, result)) = results_rx.recv() {
-        println!("fib({}) = {}", work, result);
+        trace!("fib({}) = {}", work, result);
     }
 
     for handle in threads {
