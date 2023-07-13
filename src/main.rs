@@ -30,7 +30,7 @@ fn main() {
         let thread_results_tx = results_tx.clone();
         let r = receiver.clone();
         let handle = thread::Builder::new()
-            .name(format!("thread_{}", thread_num))
+            .name(format!("worker_{}", thread_num))
             .spawn(move || {
                 debug!(
                     "Thread {}: {:?}::{} started.",
@@ -67,7 +67,7 @@ fn main() {
         .spawn(move || {
             let thread_results_tx = results_tx.clone();
             let ctrl_c_events = ctrl_channel().unwrap();
-            let ticks = tick(Duration::from_millis(5));
+            let ticks = tick(Duration::from_millis(1));
 
             info!("Producer successfully started.");
             let mut total_jobs = 0;
